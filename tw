@@ -18,6 +18,25 @@ function hex()
 	echo -n ${table[$(($1 / 16 + 1))]}${table[$(($1 % 16 + 1))]}
 }
 
+function tobinary()
+{
+	if [ ${#*} -eq 0 ]; then
+		read text
+	else
+		text=$1
+	fi
+	i=1
+	hexstr=""
+	while [ $i -le $#text ]; do
+		if [ $(($i % 2)) -eq 1 ]; then
+			hexstr="$hexstr\\x"
+		fi
+		hexstr="${hexstr}${text[$i]}"
+		i=$(($i + 1))
+	done
+	eval echo -n -e \'$hexstr\'
+}
+
 function hmac()
 {
 	# 引数を数値の配列に直す
@@ -25,7 +44,7 @@ function hmac()
 	eval key=`toarray $2`
 	# 鍵が64octet以上ならSha1する
 	if [ "${#key}" -gt "64" ]; then
-		eval key='('`echo -n "$2" | $SHA1 -b | cut -b 1-40 | xxd -r -p | od -t u1 -A n | tr -d \\n`')'
+		eval key='('`echo -n "$2" | $SHA1 -b | cut -b 1-40 | tobinary | od -t u1 -A n | tr -d \\n`')'
 	fi
 	# 計算変数を初期化する
 	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
@@ -56,9 +75,9 @@ function hmac()
 	# sha1を計算する
 	temp=""
 	for n in `seq 1 ${#m}`; do
-		temp="$temp `hex ${m[$n]}`"
+		temp="$temp`hex ${m[$n]}`"
 	done
-	eval K='('`echo -n $temp | xxd -r -p | shasum -b | cut -b 1-40 | xxd -r -p | od -t u1 -A n | tr -d \\n`')'
+	eval K='('`echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40 | tobinary | od -t u1 -A n | tr -d \\n`')'
 	# ohashを計算
 	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	for n in `seq 1 64`; do
@@ -69,9 +88,9 @@ function hmac()
 	done
 	temp=""
 	for n in `seq 1 ${#m}`; do
-		temp="$temp `hex ${m[$n]}`"
+		temp="$temp`hex ${m[$n]}`"
 	done
-	echo -n $temp | xxd -r -p | shasum -b | cut -b 1-40
+	echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40
 }
 
 function urlencode()
@@ -81,7 +100,7 @@ function urlencode()
 	for n in `seq 1 ${#base}`; do
 		case ${base[$n]} in
 			45|46|95|126|48|49|50|51|52|53|54|55|56|57|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|97|98|99|100|101|102|103|104|105|106|107|108|109|110|111|112|113|114|115|116|117|118|119|120|121|122)
-				hex ${base[$n]} | xxd -r -p
+				hex ${base[$n]} | tobinary
 				;;
 			*)
 				echo -n '%'
@@ -126,7 +145,7 @@ function sign()
 		query="${query}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
 	done
 	data="$data`urlencode $query`"
-	hmac $data $key | xxd -r -p | base64
+	hmac $data $key | tobinary | base64
 	IFS=$oldIFS
 }
 
