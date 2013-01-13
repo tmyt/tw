@@ -1,0 +1,173 @@
+#!/bin/zsh
+
+consumer_key=""
+consumer_secret=""
+access_token=""
+access_token_secret=""
+
+SHA1="shasum"
+
+function toarray()
+{
+	echo -n '('`echo -n "$1" | od -t u1 -A n | tr -d \\n`')'
+}
+
+function hex()
+{
+	table=(0 1 2 3 4 5 6 7 8 9 A B C D E F)
+	echo -n ${table[$(($1 / 16 + 1))]}${table[$(($1 % 16 + 1))]}
+}
+
+function hmac()
+{
+	# 引数を数値の配列に直す
+	eval data=`toarray $1`
+	eval key=`toarray $2`
+	# 鍵が64octet以上ならSha1する
+	if [ "${#key}" -gt "64" ]; then
+		eval key='('`echo -n "$2" | $SHA1 -b | cut -b 1-40 | xxd -r -p | od -t u1 -A n | tr -d \\n`')'
+	fi
+	# 計算変数を初期化する
+	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	ihash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	# 鍵をコピー
+	for n in `seq 1 $((${#key}))`; do
+		ohash[$n]=${key[$n]}
+		ihash[$n]=${key[$n]}
+	done
+	for n in `seq 1 64`; do
+		ihash[$n]=$((${ihash[$n]} ^ 0x36))
+		ohash[$n]=$((${ohash[$n]} ^ 0x5c))
+	done
+
+	# 64+データ長の配列を確保
+	temp=""
+	for n in `seq 1 $((64 + ${#data}))`; do
+		temp="0 $temp"
+	done
+	eval m="($temp)"
+	# 鍵とデータを結合
+	for n in `seq 1 64`; do
+		m[$n]=${ihash[$n]}
+	done
+	for n in `seq 1 ${#data}`; do
+		m[$(($n + 64))]=${data[$n]}
+	done
+	# sha1を計算する
+	temp=""
+	for n in `seq 1 ${#m}`; do
+		temp="$temp `hex ${m[$n]}`"
+	done
+	eval K='('`echo -n $temp | xxd -r -p | shasum -b | cut -b 1-40 | xxd -r -p | od -t u1 -A n | tr -d \\n`')'
+	# ohashを計算
+	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	for n in `seq 1 64`; do
+		m[$n]=${ohash[$n]}
+	done
+	for n in `seq 1 20`; do
+		m[$(($n + 64))]=${K[$n]}
+	done
+	temp=""
+	for n in `seq 1 ${#m}`; do
+		temp="$temp `hex ${m[$n]}`"
+	done
+	echo -n $temp | xxd -r -p | shasum -b | cut -b 1-40
+}
+
+function urlencode()
+{
+	eval base=`toarray $1`
+	temp=""
+	for n in `seq 1 ${#base}`; do
+		case ${base[$n]} in
+			45|46|95|126|48|49|50|51|52|53|54|55|56|57|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|97|98|99|100|101|102|103|104|105|106|107|108|109|110|111|112|113|114|115|116|117|118|119|120|121|122)
+				hex ${base[$n]} | xxd -r -p
+				;;
+			*)
+				echo -n '%'
+				hex ${base[$n]}
+				;;
+		esac
+	done
+}
+
+function b64()
+{
+	table=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 + /)
+	eval value=`toarray $1`
+	l=${#value}
+	# 足りな時は詰める
+	while [ $((${#value} % 3)) -ne 0 ]; do
+		value=($value 0)
+	done
+	echo $value
+	for n in `seq 0 $((${#value} / 3 - 1))`; do
+		echo ${value[$(($n * 3 + 1))]}
+		p1=$((${value[$(($n * 3 + 1))]} >> 2))
+		p2=$((((${value[$(($n * 3 + 1))]} & 0x3) << 4) | ((${value[$(($n * 3 + 2))]} & 0xf0) >> 4)))
+		p3=$((((${value[$(($n * 3 + 2))]} & 0xf) << 2) | ((${value[$(($n * 3 + 3))]} & 0xc0) >> 6)))
+		p4=$((${value[$(($n * 3 + 3))]} & 0x3f))
+		echo ${table[$((p1 + 1))]} ${table[$((p2 + 1))]} ${table[$((p3 + 1))]} ${table[$((p4 + 1))]} 
+	done
+}
+
+function sign()
+{
+	key=`urlencode $consumer_secret`\&`urlencode $access_token_secret`
+	data=$1\&`urlencode $2`\&
+	oldIFS=$IFS
+	IFS="
+"
+	query=""
+	for l in `sort <(echo -n $3)`; do
+		if [ "$query" != "" ]; then
+			query="$query&"
+		fi
+		query="${query}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+	done
+	data="$data`urlencode $query`"
+	hmac $data $key | xxd -r -p | base64
+	IFS=$oldIFS
+}
+
+function request()
+{
+	params="oauth_token $access_token
+oauth_consumer_key $consumer_key
+oauth_timestamp `date +%s`
+oauth_nonce `date +%s`
+oauth_signature_method HMAC-SHA1
+oauth_version 1.0"
+
+	signparams="$params
+$2"
+
+	url="$1"
+
+	signature=`sign POST $url $signparams`
+	signparams="$params
+oauth_signature $signature"
+	query=""
+	IFS="
+"
+	for l in `sort <(echo -n $signparams)`; do
+		if [ "$query" != "" ]; then
+			query="$query,"
+		fi
+		query="${query}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+	done
+	header="Authorization: OAuth $query"
+	
+	params=""
+	for l in `echo $2`; do
+		params="${params} -d `echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+	done
+	eval curl -v -H \"$header\" `echo "$params"` $url > /dev/null 2> /dev/null
+}
+
+if [ "$1" = "" ]; then
+	echo Usage: tw message
+	exit 1
+fi
+
+request "https://api.twitter.com/1.1/statuses/update.json" "status $1"
