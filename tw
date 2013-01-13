@@ -140,11 +140,11 @@ oauth_signature_method HMAC-SHA1
 oauth_version 1.0"
 
 	signparams="$params
-$2"
+$3"
 
-	url="$1"
+	url="$2"
 
-	signature=`sign POST $url $signparams`
+	signature=`sign $1 $url $signparams`
 	signparams="$params
 oauth_signature $signature"
 	query=""
@@ -158,11 +158,32 @@ oauth_signature $signature"
 	done
 	header="Authorization: OAuth $query"
 	
-	params=""
-	for l in `echo $2`; do
-		params="${params} -d `echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
-	done
-	eval curl -v -H \"$header\" `echo "$params"` $url > /dev/null 2> /dev/null
+	if [ "$1" = "GET" ]; then
+		params=""
+		for l in `echo $3`; do
+			if [ "$params" != "" ]; then
+				query="${params}&"
+			fi
+			params="${params}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+		done
+		eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
+	else
+		params=""
+		for l in `echo $3`; do
+			params="${params} -d `echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+		done
+		eval curl -v -H \"$header\" `echo "$params"` $url 2> /dev/null
+	fi
+}
+
+function get()
+{
+	request GET "$1" "$2"
+}
+
+function post()
+{
+	request POST "$1" "$2"
 }
 
 if [ "$1" = "" ]; then
@@ -170,4 +191,4 @@ if [ "$1" = "" ]; then
 	exit 1
 fi
 
-request "https://api.twitter.com/1.1/statuses/update.json" "status $1"
+post "https://api.twitter.com/1.1/statuses/update.json" "status $1"
