@@ -18,6 +18,13 @@ function toarray()
 	fi
 }
 
+function _tw_mkpair()
+{
+	echo -n "$1="
+	shift 1
+	echo -n "$*"
+}
+
 function hex()
 {
 	table=(0 1 2 3 4 5 6 7 8 9 A B C D E F)
@@ -45,8 +52,8 @@ function tobinary()
 function hmac()
 {
 	# 引数を数値の配列に直す
-	eval data=`toarray $1`
-	eval key=`toarray $2`
+	eval data=$(toarray $1)
+	eval key=$(toarray $2)
 	# 鍵が64octet以上ならSha1する
 	if [ "${#key}" -gt "64" ]; then
 		eval key=$(toarray "$(echo -n "$2" | $SHA1 -b | cut -b 1-40 | tobinary)")
@@ -80,7 +87,7 @@ function hmac()
 	# sha1を計算する
 	temp=""
 	for ((n = 1; n <= $#m; n += 1)); do
-		temp="$temp`hex ${m[$n]}`"
+		temp="$temp$(hex ${m[$n]})"
 	done
 	eval K=$(toarray "$(echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40 | tobinary)")
 	# ohashを計算
@@ -93,14 +100,14 @@ function hmac()
 	done
 	temp=""
 	for ((n = 1; n <= $#m; n += 1)); do
-		temp="$temp`hex ${m[$n]}`"
+		temp="$temp$(hex ${m[$n]})"
 	done
 	echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40
 }
 
 function urlencode()
 {
-	eval base=`toarray $1`
+	eval base=$(toarray $1)
 	temp=""
 	for ((n = 1; n <= $#base; n += 1)); do
 		case ${base[$n]} in
@@ -123,7 +130,7 @@ function b64()
 	else
 		text=$1
 	fi
-	eval value=`toarray $text`
+	eval value=$(toarray $text)
 	for ((n=1; n<=$#value; n+=1)); do
 		case $((($n - 1) % 3)) in
 			0)
@@ -153,19 +160,19 @@ function b64()
 
 function sign()
 {
-	key=`urlencode $consumer_secret`\&`urlencode $access_token_secret`
-	data=$1\&`urlencode $2`\&
+	key=$(urlencode $consumer_secret)\&$(urlencode $access_token_secret)
+	data=$1\&$(urlencode $2)\&
 	oldIFS=$IFS
 	IFS="
 "
 	query=""
-	for l in `sort <(echo -n $3)`; do
+	for l in $(sort <(echo -n $3)); do
 		if [ "$query" != "" ]; then
 			query="$query&"
 		fi
-		query="${query}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+		query="${query}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
 	done
-	data="$data`urlencode $query`"
+	data="$data$(urlencode $query)"
 	hmac $data $key | tobinary | b64
 	IFS=$oldIFS
 }
@@ -174,8 +181,8 @@ function request()
 {
 	params="oauth_token $access_token
 oauth_consumer_key $consumer_key
-oauth_timestamp `date +%s`
-oauth_nonce `date +%s`
+oauth_timestamp $(date +%s)
+oauth_nonce $(date +%s)
 oauth_signature_method HMAC-SHA1
 oauth_version 1.0"
 
@@ -184,35 +191,35 @@ $3"
 
 	url="$2"
 
-	signature=`sign $1 $url $signparams`
+	signature=$(sign $1 $url $signparams)
 	signparams="$params
 oauth_signature $signature"
 	query=""
 	IFS="
 "
-	for l in `sort <(echo -n $signparams)`; do
+	for l in $(sort <(echo -n $signparams)); do
 		if [ "$query" != "" ]; then
 			query="$query,"
 		fi
-		query="${query}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+		query="${query}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
 	done
 	header="Authorization: OAuth $query"
 	
 	if [ "$1" = "GET" ]; then
 		params=""
-		for l in `echo $3`; do
+		for l in $(echo $3); do
 			if [ "$params" != "" ]; then
 				query="${params}&"
 			fi
-			params="${params}`echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+			params="${params}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
 		done
 		eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
 	else
 		params=""
-		for l in `echo $3`; do
-			params="${params} -d `echo -n $l | awk '{print $1;}'`=`urlencode \`echo -n $l | awk '{print $2;}'\``"
+		for l in $(echo $3); do
+			params="${params} -d $(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
 		done
-		eval curl -v -H \"$header\" `echo "$params"` $url 2> /dev/null
+		eval curl -v -H \"$header\" $(echo "$params") $url 2> /dev/null
 	fi
 }
 
