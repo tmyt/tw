@@ -22,7 +22,7 @@ function _tw_mkpair()
 {
 	echo -n "$1="
 	shift 1
-	echo -n "$*"
+	urlencode $(echo -n "$*")
 }
 
 function hex()
@@ -170,7 +170,7 @@ function sign()
 		if [ "$query" != "" ]; then
 			query="$query&"
 		fi
-		query="${query}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
+		query="${query}$(eval _tw_mkpair $(echo -n $l))"
 	done
 	data="$data$(urlencode $query)"
 	hmac $data $key | tobinary | b64
@@ -201,7 +201,7 @@ oauth_signature $signature"
 		if [ "$query" != "" ]; then
 			query="$query,"
 		fi
-		query="${query}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
+		query="${query}$(eval _tw_mkpair $(echo -n $l))"
 	done
 	header="Authorization: OAuth $query"
 	
@@ -211,13 +211,13 @@ oauth_signature $signature"
 			if [ "$params" != "" ]; then
 				query="${params}&"
 			fi
-			params="${params}$(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
+			params="${params}$(eval _tw_mkpair $(echo -n $l))"
 		done
 		eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
 	else
 		params=""
 		for l in $(echo $3); do
-			params="${params} -d $(echo -n $l | awk '{print $1;}')=$(urlencode $(echo -n $l | awk '{print $2;}'))"
+			params="${params} -d $(eval _tw_mkpair $(echo -n $l))"
 		done
 		eval curl -v -H \"$header\" $(echo "$params") $url 2> /dev/null
 	fi
