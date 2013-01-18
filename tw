@@ -5,18 +5,9 @@ consumer_secret=""
 access_token=""
 access_token_secret=""
 
-SHA1="shasum"
-
 source binutils.zsh
-
-function _tw_toarray()
-{
-	if [ "$LANG" != "C" ]; then
-		LANG=C _tw_toarray "$1"
-	else
-		echo -n "("$(for ((i=1; i<=$#1; i+=1)) do echo -n " $((0x$(toint ${1[$i]})))"; done)")"
-	fi
-}
+source array.zsh
+source sha1.zsh
 
 function _tw_mkpair()
 {
@@ -52,11 +43,11 @@ function _tw_tobinary()
 function _tw_hmac()
 {
 	# 引数を数値の配列に直す
-	eval data=$(_tw_toarray $1)
-	eval key=$(_tw_toarray $2)
+	eval data=$(_array_toarray $1)
+	eval key=$(_array_toarray $2)
 	# 鍵が64octet以上ならSha1する
 	if [ "${#key}" -gt "64" ]; then
-		eval key=$(_tw_toarray "$(echo -n "$2" | $SHA1 -b | cut -b 1-40 | _tw_tobinary)")
+		eval key=$(_array_toarray "$(_sha1_hash "$2" | _tw_tobinary)")
 	fi
 	# 計算変数を初期化する
 	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
@@ -89,7 +80,7 @@ function _tw_hmac()
 	for ((n = 1; n <= $#m; n += 1)); do
 		temp="$temp$(_tw_hex ${m[$n]})"
 	done
-	eval K=$(_tw_toarray "$(echo -n $temp | _tw_tobinary | $SHA1 -b | cut -b 1-40 | _tw_tobinary)")
+	eval K=$(_array_toarray "$(_sha1_hash "$(echo -n $temp | _tw_tobinary)" | _tw_tobinary)")
 	# ohashを計算
 	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	for ((n = 1; n <=64; n += 1)); do
@@ -102,12 +93,12 @@ function _tw_hmac()
 	for ((n = 1; n <= $#m; n += 1)); do
 		temp="$temp$(_tw_hex ${m[$n]})"
 	done
-	echo -n $temp | _tw_tobinary | $SHA1 -b | cut -b 1-40
+	_sha1_hash "$(echo -n $temp | _tw_tobinary)"
 }
 
 function _tw_urlencode()
 {
-	eval base=$(_tw_toarray $1)
+	eval base=$(_array_toarray $1)
 	temp=""
 	for ((n = 1; n <= $#base; n += 1)); do
 		case ${base[$n]} in
@@ -130,7 +121,7 @@ function _tw_b64()
 	else
 		text=$1
 	fi
-	eval value=$(_tw_toarray $text)
+	eval value=$(_array_toarray $text)
 	for ((n=1; n<=$#value; n+=1)); do
 		case $((($n - 1) % 3)) in
 			0)
