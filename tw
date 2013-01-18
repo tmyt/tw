@@ -9,10 +9,10 @@ SHA1="shasum"
 
 source binutils.zsh
 
-function toarray()
+function _tw_toarray()
 {
 	if [ "$LANG" != "C" ]; then
-		LANG=C toarray "$1"
+		LANG=C _tw_toarray "$1"
 	else
 		echo -n "("$(for ((i=1; i<=$#1; i+=1)) do echo -n " $((0x$(toint ${1[$i]})))"; done)")"
 	fi
@@ -22,16 +22,16 @@ function _tw_mkpair()
 {
 	echo -n "$1="
 	shift 1
-	urlencode $(echo -n "$*")
+	_tw_urlencode $(echo -n "$*")
 }
 
-function hex()
+function _tw_hex()
 {
 	table=(0 1 2 3 4 5 6 7 8 9 A B C D E F)
 	echo -n ${table[$(($1 / 16 + 1))]}${table[$(($1 % 16 + 1))]}
 }
 
-function tobinary()
+function _tw_tobinary()
 {
 	if [ ${#*} -eq 0 ]; then
 		read text
@@ -49,14 +49,14 @@ function tobinary()
 	eval echo -n -e \'$hexstr\'
 }
 
-function hmac()
+function _tw_hmac()
 {
 	# 引数を数値の配列に直す
-	eval data=$(toarray $1)
-	eval key=$(toarray $2)
+	eval data=$(_tw_toarray $1)
+	eval key=$(_tw_toarray $2)
 	# 鍵が64octet以上ならSha1する
 	if [ "${#key}" -gt "64" ]; then
-		eval key=$(toarray "$(echo -n "$2" | $SHA1 -b | cut -b 1-40 | tobinary)")
+		eval key=$(_tw_toarray "$(echo -n "$2" | $SHA1 -b | cut -b 1-40 | _tw_tobinary)")
 	fi
 	# 計算変数を初期化する
 	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
@@ -87,9 +87,9 @@ function hmac()
 	# sha1を計算する
 	temp=""
 	for ((n = 1; n <= $#m; n += 1)); do
-		temp="$temp$(hex ${m[$n]})"
+		temp="$temp$(_tw_hex ${m[$n]})"
 	done
-	eval K=$(toarray "$(echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40 | tobinary)")
+	eval K=$(_tw_toarray "$(echo -n $temp | _tw_tobinary | $SHA1 -b | cut -b 1-40 | _tw_tobinary)")
 	# ohashを計算
 	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	for ((n = 1; n <=64; n += 1)); do
@@ -100,29 +100,29 @@ function hmac()
 	done
 	temp=""
 	for ((n = 1; n <= $#m; n += 1)); do
-		temp="$temp$(hex ${m[$n]})"
+		temp="$temp$(_tw_hex ${m[$n]})"
 	done
-	echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40
+	echo -n $temp | _tw_tobinary | $SHA1 -b | cut -b 1-40
 }
 
-function urlencode()
+function _tw_urlencode()
 {
-	eval base=$(toarray $1)
+	eval base=$(_tw_toarray $1)
 	temp=""
 	for ((n = 1; n <= $#base; n += 1)); do
 		case ${base[$n]} in
 			45|46|95|126|48|49|50|51|52|53|54|55|56|57|65|66|67|68|69|70|71|72|73|74|75|76|77|78|79|80|81|82|83|84|85|86|87|88|89|90|97|98|99|100|101|102|103|104|105|106|107|108|109|110|111|112|113|114|115|116|117|118|119|120|121|122)
-				hex ${base[$n]} | tobinary
+				_tw_hex ${base[$n]} | _tw_tobinary
 				;;
 			*)
 				echo -n '%'
-				hex ${base[$n]}
+				_tw_hex ${base[$n]}
 				;;
 		esac
 	done
 }
 
-function b64()
+function _tw_b64()
 {
 	table=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 + /)
 	if [ ${#*} -eq 0 ]; then
@@ -130,7 +130,7 @@ function b64()
 	else
 		text=$1
 	fi
-	eval value=$(toarray $text)
+	eval value=$(_tw_toarray $text)
 	for ((n=1; n<=$#value; n+=1)); do
 		case $((($n - 1) % 3)) in
 			0)
@@ -158,10 +158,10 @@ function b64()
 	done
 }
 
-function sign()
+function _tw_sign()
 {
-	key=$(urlencode $consumer_secret)\&$(urlencode $access_token_secret)
-	data=$1\&$(urlencode $2)\&
+	key=$(_tw_urlencode $consumer_secret)\&$(_tw_urlencode $access_token_secret)
+	data=$1\&$(_tw_urlencode $2)\&
 	oldIFS=$IFS
 	IFS="
 "
@@ -172,12 +172,12 @@ function sign()
 		fi
 		query="${query}$(eval _tw_mkpair $(echo -n $l))"
 	done
-	data="$data$(urlencode $query)"
-	hmac $data $key | tobinary | b64
+	data="$data$(_tw_urlencode $query)"
+	_tw_hmac $data $key | _tw_tobinary | _tw_b64
 	IFS=$oldIFS
 }
 
-function request()
+function _tw_request()
 {
 	params="oauth_token $access_token
 oauth_consumer_key $consumer_key
@@ -191,7 +191,7 @@ $3"
 
 	url="$2"
 
-	signature=$(sign $1 $url $signparams)
+	signature=$(_tw_sign $1 $url $signparams)
 	signparams="$params
 oauth_signature $signature"
 	query=""
@@ -225,12 +225,12 @@ oauth_signature $signature"
 
 function get()
 {
-	request GET "$1" "$2"
+	_tw_request GET "$1" "$2"
 }
 
 function post()
 {
-	request POST "$1" "$2"
+	_tw_request POST "$1" "$2"
 }
 
 if [ "$1" = "" ]; then
