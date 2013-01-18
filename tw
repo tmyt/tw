@@ -7,9 +7,15 @@ access_token_secret=""
 
 SHA1="shasum"
 
+source binutils.zsh
+
 function toarray()
 {
-	echo -n '('`echo -n "$1" | od -t u1 -A n | tr -d \\n`')'
+	if [ "$LANG" != "C" ]; then
+		LANG=C toarray "$1"
+	else
+		echo -n "("$(for ((i=1; i<=$#1; i+=1)) do echo -n " $((0x$(toint ${1[$i]})))"; done)")"
+	fi
 }
 
 function hex()
@@ -43,7 +49,7 @@ function hmac()
 	eval key=`toarray $2`
 	# 鍵が64octet以上ならSha1する
 	if [ "${#key}" -gt "64" ]; then
-		eval key='('`echo -n "$2" | $SHA1 -b | cut -b 1-40 | tobinary | od -t u1 -A n | tr -d \\n`')'
+		eval key=$(toarray "$(echo -n "$2" | $SHA1 -b | cut -b 1-40 | tobinary)")
 	fi
 	# 計算変数を初期化する
 	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
@@ -76,7 +82,7 @@ function hmac()
 	for ((n = 1; n <= $#m; n += 1)); do
 		temp="$temp`hex ${m[$n]}`"
 	done
-	eval K='('`echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40 | tobinary | od -t u1 -A n | tr -d \\n`')'
+	eval K=$(toarray "$(echo -n $temp | tobinary | $SHA1 -b | cut -b 1-40 | tobinary)")
 	# ohashを計算
 	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	for ((n = 1; n <=64; n += 1)); do
