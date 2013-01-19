@@ -115,7 +115,7 @@ function _tw_urlencode()
 
 function _tw_b64()
 {
-	table=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 + /)
+	table="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
 	if [ ${#*} -eq 0 ]; then
 		read text
 	else
@@ -164,7 +164,7 @@ function _tw_sign()
 		query="${query}$(eval _tw_mkpair $(echo -n $l))"
 	done
 	data="$data$(_tw_urlencode $query)"
-	_tw_hmac $data $key | _tw_tobinary | _tw_b64
+	_tw_b64 "$(_tw_hmac $data $key | _tw_tobinary)"
 	IFS=$oldIFS
 }
 
