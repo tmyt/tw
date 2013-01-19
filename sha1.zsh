@@ -42,6 +42,11 @@ function _sha1_hash()
 	len=$(($#buffer * 8))
 	# extends
 	buffer[$(($#buffer + 1))]=$((0x80))
+	if [ $(($#buffer % 64)) -gt 56 ]; then
+		while [ $(($#buffer % 64)) -gt 56 ]; do
+			buffer[$(($#buffer + 1))]=0
+		done
+	fi
 	for ((i=$(($#buffer % 64 + 1)); i<=56; i+=1)) do
 		buffer[$(($#buffer + 1))]=0
 	done
