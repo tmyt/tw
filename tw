@@ -2,8 +2,8 @@
 
 consumer_key=""
 consumer_secret=""
-access_token=""
-access_token_secret=""
+oauth_token=""
+oauth_token_secret=""
 
 source binutils.zsh
 source array.zsh
@@ -151,7 +151,7 @@ function _tw_b64()
 
 function _tw_sign()
 {
-	key=$(_tw_urlencode $consumer_secret)\&$(_tw_urlencode $access_token_secret)
+	key=$(_tw_urlencode $consumer_secret)\&$(_tw_urlencode $oauth_token_secret)
 	data=$1\&$(_tw_urlencode $2)\&
 	oldIFS=$IFS
 	IFS="
@@ -170,7 +170,7 @@ function _tw_sign()
 
 function _tw_request()
 {
-	params="oauth_token $access_token
+	params="oauth_token $oauth_token
 oauth_consumer_key $consumer_key
 oauth_timestamp $(date +%s)
 oauth_nonce $(date +%s)
@@ -214,6 +214,47 @@ oauth_signature $signature"
 	fi
 }
 
+function _tw_authorize()
+{
+	local oauth_callback_confirmed
+	local response pin
+	oauth_token=""
+	oauth_token_secret=""
+	response=$(get https://api.twitter.com/oauth/request_token)
+	for ((i=1; i<=$#response; i+=1)) do
+		if [ "${response[$i]}" = '&' ]; then
+			response[$i]=' '
+		fi
+	done
+	for l in $(echo -n $response); do
+		eval $l
+	done
+	echo "https://api.twitter.com/oauth/authorize?oauth_token=$oauth_token"
+	echo -n "PIN Code>"
+	read pin
+	local user_id screen_name
+	response=$(post https://api.twitter.com/oauth/access_token "oauth_verifier $pin")
+	for ((i=1; i<=$#response; i+=1)) do
+		if [ "${response[$i]}" = '&' ]; then
+			response[$i]=' '
+		fi
+	done
+	for l in $(echo -n $response); do
+		eval $l
+	done
+	echo "oauth_token=$oauth_token" > ~/.tw.token
+	echo "oauth_token_secret=$oauth_token_secret" >> ~/.tw.token
+}
+
+function _tw_load_token()
+{
+	if [ -f ~/.tw.token ]; then
+		for l in $(cat ~/.tw.token); do
+			eval $l
+		done
+	fi
+}
+
 function get()
 {
 	_tw_request GET "$1" "$2"
@@ -223,6 +264,8 @@ function post()
 {
 	_tw_request POST "$1" "$2"
 }
+
+_tw_load_token
 
 if [ "$1" = "" ]; then
 	echo Usage: tw message
