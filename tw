@@ -24,20 +24,15 @@ function _tw_hex()
 
 function _tw_tobinary()
 {
+	local i
 	if [ ${#*} -eq 0 ]; then
 		read text
 	else
 		text=$1
 	fi
-	i=1
-	hexstr=""
-	for ((i = 1; i <= $#text; i += 1)); do
-		if [ $(($i % 2)) -eq 1 ]; then
-			hexstr="$hexstr\\x"
-		fi
-		hexstr="${hexstr}${text[$i]}"
+	for ((i = 2; i <= $#text; i += 2)); do
+		echo -n -e \\x${text[$(($i-1))]}${text[$i]}
 	done
-	eval echo -n -e \'$hexstr\'
 }
 
 function _tw_hmac()
