@@ -9,6 +9,9 @@ source binutils.zsh
 source array.zsh
 source sha1.zsh
 
+# _tw_mkpair
+# desc: make "key=value" string. value to be URL encoded.
+# args: key, value
 function _tw_mkpair()
 {
 	echo -n "$1="
@@ -16,12 +19,18 @@ function _tw_mkpair()
 	_tw_urlencode $(echo -n "$*")
 }
 
+# _tw_hex
+# desc: convert Integer to Hex-string
+# args: n
 function _tw_hex()
 {
 	table=(0 1 2 3 4 5 6 7 8 9 A B C D E F)
 	echo -n ${table[$(($1 / 16 + 1))]}${table[$(($1 % 16 + 1))]}
 }
 
+# _tw_tobinary
+# desc: convert hex dump to binary string
+# args: string
 function _tw_tobinary()
 {
 	local i
@@ -35,6 +44,9 @@ function _tw_tobinary()
 	done
 }
 
+# _tw_hmac
+# desc: calculate hmac-sha1 digest.
+# args: message, secret
 function _tw_hmac()
 {
 	# 引数を数値の配列に直す
@@ -91,6 +103,9 @@ function _tw_hmac()
 	_sha1_hash "$(echo -n $temp | _tw_tobinary)"
 }
 
+# _tw_urlencode
+# desc: urlencode
+# args: string
 function _tw_urlencode()
 {
 	eval base=$(_array_toarray $1)
@@ -108,6 +123,9 @@ function _tw_urlencode()
 	done
 }
 
+# _tw_b64
+# desc: base64 encode
+# args: value
 function _tw_b64()
 {
 	table="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
@@ -144,6 +162,9 @@ function _tw_b64()
 	done
 }
 
+# _tw_sign
+# desc: calculate oauth signature
+# args: method, uri, params
 function _tw_sign()
 {
 	key=$(_tw_urlencode $consumer_secret)\&$(_tw_urlencode $oauth_token_secret)
@@ -163,6 +184,45 @@ function _tw_sign()
 	IFS=$oldIFS
 }
 
+# _tw_http_request
+# args: method, uri, header, params
+function _tw_http_request()
+{
+	local fd host
+	zmodload zsh/net/tcp
+	host=${$(echo -n ${2#http://})%%/*}
+	ztcp $(echo -n $host) 80
+	fd=$REPLY
+	echo "$1 $(echo -n /${$(echo -n ${2#http://})#*/}) HTTP/1.0
+Host: $host" >&$fd
+	if [ "$1" = "POST" ]; then
+		echo -n "Content-Type: application/x-www-form-urlencoded
+" >&$fd
+		echo -n "Content-Length: $#4
+" >&$fd
+	fi
+	if [ "$3" != "" ]; then
+		echo -n "$3
+
+" >&$fd
+	else
+		echo -n "
+" >&$fd
+	fi
+	if [ "$1" = "POST" ]; then
+		echo -n "$4" >&$fd
+	fi
+	if [ "$5" = "" ]; then
+		while [ "$(IFS="
+" read -u $fd -r -e)" != "$(echo \\015\\012)" ]; do; :; done
+	fi
+	cat <&$fd
+	ztcp -c $fd
+}
+
+# _tw_request
+# desc: send request with oauth
+# args: method, uri, params
 function _tw_request()
 {
 	params="oauth_token $oauth_token
@@ -199,23 +259,28 @@ oauth_signature $signature"
 			fi
 			params="${params}$(eval _tw_mkpair $(echo -n $l))"
 		done
-		eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
+#eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
+		_tw_http_request "GET" "${url}?${params}" "$header" ""
 	else
 		params=""
 		for l in $(echo $3); do
 			params="${params} -d $(eval _tw_mkpair $(echo -n $l))"
 		done
-		eval curl -v -H \"$header\" $(echo "$params") $url 2> /dev/null
+#eval curl -v -H \"$header\" $(echo "$params") $url 2> /dev/null
+		_tw_http_request "POST" "${url}" "$header" "$params"
 	fi
 }
 
+# _tw_authorize
+# desc: authorize your account
+# args: <N/A>
 function _tw_authorize()
 {
 	local oauth_callback_confirmed
 	local response pin
 	oauth_token=""
 	oauth_token_secret=""
-	response=$(get https://api.twitter.com/oauth/request_token)
+	response=$(get http://api.twitter.com/oauth/request_token)
 	for ((i=1; i<=$#response; i+=1)) do
 		if [ "${response[$i]}" = '&' ]; then
 			response[$i]=' '
@@ -228,7 +293,7 @@ function _tw_authorize()
 	echo -n "PIN Code>"
 	read pin
 	local user_id screen_name
-	response=$(post https://api.twitter.com/oauth/access_token "oauth_verifier $pin")
+	response=$(post http://api.twitter.com/oauth/access_token "oauth_verifier $pin")
 	for ((i=1; i<=$#response; i+=1)) do
 		if [ "${response[$i]}" = '&' ]; then
 			response[$i]=' '
@@ -241,6 +306,9 @@ function _tw_authorize()
 	echo "oauth_token_secret=$oauth_token_secret" >> ~/.tw.token
 }
 
+# _tw_load_token
+# desc: load saved token
+# args: <N/A>
 function _tw_load_token()
 {
 	if [ -f ~/.tw.token ]; then
@@ -250,11 +318,17 @@ function _tw_load_token()
 	fi
 }
 
+# get
+# desc: send get request
+# args: uri, params
 function get()
 {
 	_tw_request GET "$1" "$2"
 }
 
+# post
+# desc: send post request
+# args: uri, params
 function post()
 {
 	_tw_request POST "$1" "$2"
