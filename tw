@@ -251,21 +251,17 @@ oauth_signature $signature"
 	done
 	header="Authorization: OAuth $query"
 	
+	params=""
+	for l in $(echo $3); do
+		if [ "$params" != "" ]; then
+			params="${params}&"
+		fi
+		params="${params}$(eval _tw_mkpair $(echo -n $l))"
+	done
 	if [ "$1" = "GET" ]; then
-		params=""
-		for l in $(echo $3); do
-			if [ "$params" != "" ]; then
-				query="${params}&"
-			fi
-			params="${params}$(eval _tw_mkpair $(echo -n $l))"
-		done
 #eval curl -v -H \"$header\" "\"${url}?${params}\"" 2> /dev/null
 		_tw_http_request "GET" "${url}?${params}" "$header" ""
 	else
-		params=""
-		for l in $(echo $3); do
-			params="${params} -d $(eval _tw_mkpair $(echo -n $l))"
-		done
 #eval curl -v -H \"$header\" $(echo "$params") $url 2> /dev/null
 		_tw_http_request "POST" "${url}" "$header" "$params"
 	fi
