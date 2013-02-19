@@ -24,6 +24,7 @@ function _tw_mkpair()
 # args: n
 function _tw_hex()
 {
+	local table
 	table=(0 1 2 3 4 5 6 7 8 9 A B C D E F)
 	echo -n ${table[$(($1 / 16 + 1))]}${table[$(($1 % 16 + 1))]}
 }
@@ -33,7 +34,7 @@ function _tw_hex()
 # args: string
 function _tw_tobinary()
 {
-	local i
+	local i text
 	if [ ${#*} -eq 0 ]; then
 		read text
 	else
@@ -50,6 +51,7 @@ function _tw_tobinary()
 function _tw_hmac()
 {
 	# 引数を数値の配列に直す
+	local data key
 	eval data=$(_array_toarray $1)
 	eval key=$(_array_toarray $2)
 	# 鍵が64octet以上ならSha1する
@@ -57,9 +59,11 @@ function _tw_hmac()
 		eval key=$(_array_toarray "$(_sha1_hash "$2" | _tw_tobinary)")
 	fi
 	# 計算変数を初期化する
+	local ohash ihash
 	ohash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	ihash=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
 	# 鍵をコピー
+	local n
 	for ((n = 1; n <= $#key; n += 1)); do
 		ohash[$n]=${key[$n]}
 		ihash[$n]=${key[$n]}
@@ -70,6 +74,7 @@ function _tw_hmac()
 	done
 
 	# 64+データ長の配列を確保
+	local temp m
 	temp=""
 	for ((n = 1; n <= $((64 + $#data)); n += 1)); do
 		temp="0 $temp"
@@ -87,6 +92,7 @@ function _tw_hmac()
 	for ((n = 1; n <= $#m; n += 1)); do
 		temp="$temp$(_tw_hex ${m[$n]})"
 	done
+	local K
 	eval K=$(_array_toarray "$(_sha1_hash "$(echo -n $temp | _tw_tobinary)" | _tw_tobinary)")
 	# ohashを計算
 	m=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
@@ -108,6 +114,7 @@ function _tw_hmac()
 # args: string
 function _tw_urlencode()
 {
+	local base temp n
 	eval base=$(_array_toarray $1)
 	temp=""
 	for ((n = 1; n <= $#base; n += 1)); do
@@ -128,6 +135,7 @@ function _tw_urlencode()
 # args: value
 function _tw_b64()
 {
+	local table text value n p p1 p2
 	table="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
 	if [ ${#*} -eq 0 ]; then
 		read text
@@ -167,6 +175,7 @@ function _tw_b64()
 # args: method, uri, params
 function _tw_sign()
 {
+	local key data oldIFS query l
 	key=$(_tw_urlencode $consumer_secret)\&$(_tw_urlencode $oauth_token_secret)
 	data=$1\&$(_tw_urlencode $2)\&
 	oldIFS=$IFS
@@ -225,6 +234,7 @@ Host: $host" >&$fd
 # args: method, uri, params
 function _tw_request()
 {
+	local params signparams url signature query l 
 	params="oauth_token $oauth_token
 oauth_consumer_key $consumer_key
 oauth_timestamp $(date +%s)
